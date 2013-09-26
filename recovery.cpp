@@ -874,7 +874,6 @@ main(int argc, char **argv) {
         switch (arg) {
         case 'p': previous_runs = atoi(optarg); break;
         case 's': send_intent = optarg; break;
-        case 'u': update_package = optarg; break;
         case 'w': wipe_data = wipe_cache = 1; break;
         case 'c': wipe_cache = 1; break;
         case 't': show_text = 1; break;
@@ -919,47 +918,56 @@ main(int argc, char **argv) {
     }
     printf("\n");
 
-    if (update_package) {
-        // For backwards compatibility on the cache partition only, if
-        // we're given an old 'root' path "CACHE:foo", change it to
-        // "/cache/foo".
-        if (strncmp(update_package, "CACHE:", 6) == 0) {
-            int len = strlen(update_package) + 10;
-            char* modified_path = (char*)malloc(len);
-            strlcpy(modified_path, "/cache/", len);
-            strlcat(modified_path, update_package+6, len);
-            printf("(replacing path \"%s\" with \"%s\")\n",
-                   update_package, modified_path);
-            update_package = modified_path;
-        }
-    }
-    printf("\n");
-
-    property_list(print_property, NULL);
-    printf("\n");
-
     int status = INSTALL_SUCCESS;
 
-    if (update_package != NULL) {
-        status = install_package(update_package, &wipe_cache, TEMPORARY_INSTALL_FILE);
-        if (status == INSTALL_SUCCESS && wipe_cache) {
-            if (erase_volume("/cache")) {
-                LOGE("Cache wipe (requested by package) failed.");
-            }
-        }
-        if (status != INSTALL_SUCCESS) {
-            ui->Print("Installation aborted.\n");
+    while ((arg = getopt_long(argc, argv, "", OPTIONS, NULL)) != -1) {
+        if (arg == 'u') {        
+            update_package = optarg;
 
-            // If this is an eng or userdebug build, then automatically
-            // turn the text display on if the script fails so the error
-            // message is visible.
-            char buffer[PROPERTY_VALUE_MAX+1];
-            property_get("ro.build.fingerprint", buffer, "");
-            if (strstr(buffer, ":userdebug/") || strstr(buffer, ":eng/")) {
-                ui->ShowText(true);
+            if (update_package) {
+                // For backwards compatibility on the cache partition only, if
+                // we're given an old 'root' path "CACHE:foo", change it to
+                // "/cache/foo".
+                if (strncmp(update_package, "CACHE:", 6) == 0) {
+                    int len = strlen(update_package) + 10;
+                    char* modified_path = (char*)malloc(len);
+                    strlcpy(modified_path, "/cache/", len);
+                    strlcat(modified_path, update_package+6, len);
+                    printf("(replacing path \"%s\" with \"%s\")\n",
+                           update_package, modified_path);
+                    update_package = modified_path;
+                }
+            }
+            printf("\n");
+
+            property_list(print_property, NULL);
+            printf("\n");
+               
+            if (update_package != NULL) {
+                status = install_package(update_package, &wipe_cache, TEMPORARY_INSTALL_FILE);
+                if (status == INSTALL_SUCCESS && wipe_cache) {
+                    if (erase_volume("/cache")) {
+                        LOGE("Cache wipe (requested by package) failed.");
+                    }
+                }
+                if (status != INSTALL_SUCCESS) {
+                    ui->Print("Installation aborted.\n");
+
+                    // If this is an eng or userdebug build, then automatically
+                    // turn the text display on if the script fails so the error
+                    // message is visible.
+                    char buffer[PROPERTY_VALUE_MAX+1];
+                    property_get("ro.build.fingerprint", buffer, "");
+                    if (strstr(buffer, ":userdebug/") || strstr(buffer, ":eng/")) {
+                        ui->ShowText(true);
+                    }
+                    break;
+                }
             }
         }
-    } else if (wipe_data) {
+    }
+    
+    if (wipe_data) {
         if (device->WipeData()) status = INSTALL_ERROR;
         if (erase_volume("/data")) status = INSTALL_ERROR;
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
