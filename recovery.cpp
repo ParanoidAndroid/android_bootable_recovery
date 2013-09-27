@@ -56,6 +56,7 @@ static const struct option OPTIONS[] = {
   { "show_text", no_argument, NULL, 't' },
   { "just_exit", no_argument, NULL, 'x' },
   { "locale", required_argument, NULL, 'l' },
+  { "disable_verification", no_argument, NULL, 'd' },
   { NULL, 0, NULL, 0 },
 };
 
@@ -440,10 +441,17 @@ copy_sideloaded_package(const char* original_path) {
 
 static const char**
 prepend_title(const char* const* headers) {
-    const char* title[] = { "Android system recovery <"
-                            EXPAND(RECOVERY_API_VERSION) "e>",
-                            "",
-                            NULL };
+    const char* title[] = {
+        "    ___       ___       ___   ",
+        "   /\\  \\     /\\  \\     /\\  \\  ",
+        "  /::\\  \\   /::\\  \\   /::\\  \\ ",
+        " /::\\:\\__\\ /::\\:\\__\\ /::\\:\\__\\",
+        " \\/\\::/  / \\/\\::/  / \\;:::/  /",
+        "    \\/__/    /:/  /   |:\\/__/ ",
+        "             \\/__/     \\|__|  ",
+        "",
+        NULL
+    };
 
     // count the number of lines in our title, plus the
     // caller-provided headers.
@@ -866,19 +874,21 @@ main(int argc, char **argv) {
     int previous_runs = 0;
     const char *send_intent = NULL;
     const char *update_package = NULL;
-    int wipe_data = 0, wipe_cache = 0, show_text = 0;
+    int wipe_data = 0, wipe_cache = 0;
     bool just_exit = false;
+    bool disable_verification = false;
 
     int arg;
     while ((arg = getopt_long(argc, argv, "", OPTIONS, NULL)) != -1) {
         switch (arg) {
         case 'p': previous_runs = atoi(optarg); break;
         case 's': send_intent = optarg; break;
+        case 'u': update_package = optarg; break;
         case 'w': wipe_data = wipe_cache = 1; break;
         case 'c': wipe_cache = 1; break;
-        case 't': show_text = 1; break;
         case 'x': just_exit = true; break;
         case 'l': locale = optarg; break;
+        case 'd': disable_verification = optarg; break;
         case '?':
             LOGE("Invalid command argument\n");
             continue;
@@ -897,7 +907,7 @@ main(int argc, char **argv) {
     ui->Init();
     ui->SetLocale(locale);
     ui->SetBackground(RecoveryUI::NONE);
-    if (show_text) ui->ShowText(true);
+    ui->ShowText(true);
 
     struct selinux_opt seopts[] = {
       { SELABEL_OPT_PATH, "/file_contexts" }
@@ -919,10 +929,14 @@ main(int argc, char **argv) {
     printf("\n");
 
     int status = INSTALL_SUCCESS;
-
+    optind = 1;
     while ((arg = getopt_long(argc, argv, "", OPTIONS, NULL)) != -1) {
-        if (arg == 'u') {        
+        if (arg == 'u') {
             update_package = optarg;
+
+            ui->Print("Preparing for: ");
+            ui->Print(update_package);
+            ui->Print("\n");
 
             if (update_package) {
                 // For backwards compatibility on the cache partition only, if
@@ -942,9 +956,9 @@ main(int argc, char **argv) {
 
             property_list(print_property, NULL);
             printf("\n");
-               
+           
             if (update_package != NULL) {
-                status = install_package(update_package, &wipe_cache, TEMPORARY_INSTALL_FILE);
+                status = install_package(update_package, &wipe_cache, TEMPORARY_INSTALL_FILE, disable_verification);
                 if (status == INSTALL_SUCCESS && wipe_cache) {
                     if (erase_volume("/cache")) {
                         LOGE("Cache wipe (requested by package) failed.");
@@ -952,21 +966,12 @@ main(int argc, char **argv) {
                 }
                 if (status != INSTALL_SUCCESS) {
                     ui->Print("Installation aborted.\n");
-
-                    // If this is an eng or userdebug build, then automatically
-                    // turn the text display on if the script fails so the error
-                    // message is visible.
-                    char buffer[PROPERTY_VALUE_MAX+1];
-                    property_get("ro.build.fingerprint", buffer, "");
-                    if (strstr(buffer, ":userdebug/") || strstr(buffer, ":eng/")) {
-                        ui->ShowText(true);
-                    }
                     break;
                 }
             }
         }
     }
-    
+
     if (wipe_data) {
         if (device->WipeData()) status = INSTALL_ERROR;
         if (erase_volume("/data")) status = INSTALL_ERROR;

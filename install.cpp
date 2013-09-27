@@ -175,7 +175,7 @@ try_update_binary(const char *path, ZipArchive *zip, int* wipe_cache) {
 }
 
 static int
-really_install_package(const char *path, int* wipe_cache)
+really_install_package(const char *path, int* wipe_cache, bool disable_verification = false)
 {
     ui->SetBackground(RecoveryUI::INSTALLING_UPDATE);
     ui->Print("Finding update package...\n");
@@ -189,26 +189,28 @@ really_install_package(const char *path, int* wipe_cache)
 
     ui->Print("Opening update package...\n");
 
-    int numKeys;
-    RSAPublicKey* loadedKeys = load_keys(PUBLIC_KEYS_FILE, &numKeys);
-    if (loadedKeys == NULL) {
-        LOGE("Failed to load keys\n");
-        return INSTALL_CORRUPT;
-    }
-    LOGI("%d key(s) loaded from %s\n", numKeys, PUBLIC_KEYS_FILE);
-
-    // Give verification half the progress bar...
-    ui->Print("Verifying update package...\n");
-    ui->SetProgressType(RecoveryUI::DETERMINATE);
-    ui->ShowProgress(VERIFICATION_PROGRESS_FRACTION, VERIFICATION_PROGRESS_TIME);
-
     int err;
-    err = verify_file(path, loadedKeys, numKeys);
-    free(loadedKeys);
-    LOGI("verify_file returned %d\n", err);
-    if (err != VERIFY_SUCCESS) {
-        LOGE("signature verification failed\n");
-        return INSTALL_CORRUPT;
+    if (disable_verification) {
+        int numKeys;
+        RSAPublicKey* loadedKeys = load_keys(PUBLIC_KEYS_FILE, &numKeys);
+        if (loadedKeys == NULL) {
+            LOGE("Failed to load keys\n");
+            return INSTALL_CORRUPT;
+        }
+        LOGI("%d key(s) loaded from %s\n", numKeys, PUBLIC_KEYS_FILE);
+
+        // Give verification half the progress bar...
+        ui->Print("Verifying update package...\n");
+        ui->SetProgressType(RecoveryUI::DETERMINATE);
+        ui->ShowProgress(VERIFICATION_PROGRESS_FRACTION, VERIFICATION_PROGRESS_TIME);
+        
+        err = verify_file(path, loadedKeys, numKeys);
+        free(loadedKeys);
+        LOGI("verify_file returned %d\n", err);
+        if (err != VERIFY_SUCCESS) {
+            LOGE("signature verification failed\n");
+            return INSTALL_CORRUPT;
+        }
     }
 
     /* Try to open the package.
@@ -227,7 +229,7 @@ really_install_package(const char *path, int* wipe_cache)
 }
 
 int
-install_package(const char* path, int* wipe_cache, const char* install_file)
+install_package(const char* path, int* wipe_cache, const char* install_file, bool disable_verification)
 {
     FILE* install_log = fopen_path(install_file, "w");
     if (install_log) {
@@ -236,7 +238,7 @@ install_package(const char* path, int* wipe_cache, const char* install_file)
     } else {
         LOGE("failed to open last_install: %s\n", strerror(errno));
     }
-    int result = really_install_package(path, wipe_cache);
+    int result = really_install_package(path, wipe_cache, disable_verification);
     if (install_log) {
         fputc(result == INSTALL_SUCCESS ? '1' : '0', install_log);
         fputc('\n', install_log);
