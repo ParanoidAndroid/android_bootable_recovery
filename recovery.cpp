@@ -442,13 +442,7 @@ copy_sideloaded_package(const char* original_path) {
 static const char**
 prepend_title(const char* const* headers) {
     const char* title[] = {
-        "    ___       ___       ___   ",
-        "   /\\  \\     /\\  \\     /\\  \\  ",
-        "  /::\\  \\   /::\\  \\   /::\\  \\ ",
-        " /::\\:\\__\\ /::\\:\\__\\ /::\\:\\__\\",
-        " \\/\\::/  / \\/\\::/  / \\;:::/  /",
-        "    \\/__/    /:/  /   |:\\/__/ ",
-        "             \\/__/     \\|__|  ",
+        "ParanoidAndroid [Recovery]",
         "",
         NULL
     };
@@ -699,11 +693,6 @@ prompt_and_wait(Device* device, int status) {
     for (;;) {
         finish_recovery(NULL);
         switch (status) {
-            case INSTALL_SUCCESS:
-            case INSTALL_NONE:
-                ui->SetBackground(RecoveryUI::NO_COMMAND);
-                break;
-
             case INSTALL_ERROR:
             case INSTALL_CORRUPT:
                 ui->SetBackground(RecoveryUI::ERROR);
@@ -888,7 +877,7 @@ main(int argc, char **argv) {
         case 'c': wipe_cache = 1; break;
         case 'x': just_exit = true; break;
         case 'l': locale = optarg; break;
-        case 'd': disable_verification = optarg; break;
+        case 'd': disable_verification = true; break;
         case '?':
             LOGE("Invalid command argument\n");
             continue;
@@ -981,8 +970,7 @@ main(int argc, char **argv) {
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
         if (status != INSTALL_SUCCESS) ui->Print("Cache wipe failed.\n");
     } else if (!just_exit) {
-        status = INSTALL_NONE;  // No command specified
-        ui->SetBackground(RecoveryUI::NO_COMMAND);
+        status = INSTALL_NONE;
     }
 
     if (status == INSTALL_ERROR || status == INSTALL_CORRUPT) {
