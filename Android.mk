@@ -52,7 +52,8 @@ LOCAL_STATIC_LIBRARIES := \
     libselinux \
     libstdc++ \
     libm \
-    libc
+    libc \ 
+    busybox
 
 ifeq ($(TARGET_USERIMAGES_USE_EXT4), true)
     LOCAL_CFLAGS += -DUSE_EXT4
